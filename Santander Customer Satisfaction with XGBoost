@@ -1,0 +1,1244 @@
+{
+  "metadata": {
+    "kernelspec": {
+      "language": "python",
+      "display_name": "Python 3",
+      "name": "python3"
+    },
+    "language_info": {
+      "name": "python",
+      "version": "3.10.13",
+      "mimetype": "text/x-python",
+      "codemirror_mode": {
+        "name": "ipython",
+        "version": 3
+      },
+      "pygments_lexer": "ipython3",
+      "nbconvert_exporter": "python",
+      "file_extension": ".py"
+    },
+    "kaggle": {
+      "accelerator": "none",
+      "dataSources": [
+        {
+          "sourceId": 4986,
+          "databundleVersionId": 860641,
+          "sourceType": "competition"
+        }
+      ],
+      "dockerImageVersionId": 30746,
+      "isInternetEnabled": true,
+      "language": "python",
+      "sourceType": "notebook",
+      "isGpuEnabled": false
+    },
+    "colab": {
+      "name": "Santander Customer Satisfaction - XGBoost",
+      "provenance": [],
+      "include_colab_link": true
+    }
+  },
+  "nbformat_minor": 0,
+  "nbformat": 4,
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/abu14/Twitter-Data-Analysis-by-Abenezer-Tesfaye/blob/main/Santander%20Customer%20Satisfaction%20with%20XGBoost\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "source": [
+        "# IMPORTANT: SOME KAGGLE DATA SOURCES ARE PRIVATE\n",
+        "# RUN THIS CELL IN ORDER TO IMPORT YOUR KAGGLE DATA SOURCES.\n",
+        "import kagglehub\n",
+        "kagglehub.login()\n"
+      ],
+      "metadata": {
+        "id": "yVO1_nCf6SzU"
+      },
+      "cell_type": "code",
+      "outputs": [],
+      "execution_count": null
+    },
+    {
+      "source": [
+        "# IMPORTANT: RUN THIS CELL IN ORDER TO IMPORT YOUR KAGGLE DATA SOURCES,\n",
+        "# THEN FEEL FREE TO DELETE THIS CELL.\n",
+        "# NOTE: THIS NOTEBOOK ENVIRONMENT DIFFERS FROM KAGGLE'S PYTHON\n",
+        "# ENVIRONMENT SO THERE MAY BE MISSING LIBRARIES USED BY YOUR\n",
+        "# NOTEBOOK.\n",
+        "\n",
+        "santander_customer_satisfaction_path = kagglehub.competition_download('santander-customer-satisfaction')\n",
+        "\n",
+        "print('Data source import complete.')\n"
+      ],
+      "metadata": {
+        "id": "nG3l4ldb6Szc"
+      },
+      "cell_type": "code",
+      "outputs": [],
+      "execution_count": null
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# This Python 3 environment comes with many helpful analytics libraries installed\n",
+        "# It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python\n",
+        "# For example, here's several helpful packages to load\n",
+        "\n",
+        "import numpy as np # linear algebra\n",
+        "import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\n",
+        "\n",
+        "# Input data files are available in the read-only \"../input/\" directory\n",
+        "# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory\n",
+        "\n",
+        "import os\n",
+        "for dirname, _, filenames in os.walk('/kaggle/input'):\n",
+        "    for filename in filenames:\n",
+        "        print(os.path.join(dirname, filename))\n",
+        "\n",
+        "# You can write up to 20GB to the current directory (/kaggle/working/) that gets preserved as output when you create a version using \"Save & Run All\"\n",
+        "# You can also write temporary files to /kaggle/temp/, but they won't be saved outside of the current session"
+      ],
+      "metadata": {
+        "_uuid": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5",
+        "_cell_guid": "b1076dfc-b9ad-4769-8c92-a6c4dae69d19",
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:16:52.587115Z",
+          "iopub.execute_input": "2024-09-13T13:16:52.587571Z",
+          "iopub.status.idle": "2024-09-13T13:16:52.59775Z",
+          "shell.execute_reply.started": "2024-09-13T13:16:52.58754Z",
+          "shell.execute_reply": "2024-09-13T13:16:52.596359Z"
+        },
+        "trusted": true,
+        "id": "d4lRNqTT6Szf"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## **Import Libraries**"
+      ],
+      "metadata": {
+        "id": "0e5CdQt16Szk"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import numpy as np # linear algebra\n",
+        "import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)\n",
+        "import matplotlib.pyplot as plt\n",
+        "import matplotlib\n",
+        "matplotlib.use(\"Agg\") #Needed to save figures\n",
+        "from sklearn.model_selection import train_test_split, cross_val_score\n",
+        "import xgboost as xgb\n",
+        "from sklearn.metrics import roc_auc_score\n",
+        "import seaborn as sns"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:16:54.031371Z",
+          "iopub.execute_input": "2024-09-13T13:16:54.031846Z",
+          "iopub.status.idle": "2024-09-13T13:16:54.03899Z",
+          "shell.execute_reply.started": "2024-09-13T13:16:54.031814Z",
+          "shell.execute_reply": "2024-09-13T13:16:54.037808Z"
+        },
+        "trusted": true,
+        "id": "ESWnmw6_6Szx"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## **Import Dataset**"
+      ],
+      "metadata": {
+        "id": "M9HzMAZ46Sz2"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "training = pd.read_csv(\"/kaggle/input/santander-customer-satisfaction/train.csv\", index_col=0)\n",
+        "test = pd.read_csv(\"/kaggle/input/santander-customer-satisfaction/test.csv\", index_col=0)\n",
+        "\n",
+        "print(training.shape)\n",
+        "print(test.shape)"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:16:55.230442Z",
+          "iopub.execute_input": "2024-09-13T13:16:55.231543Z",
+          "iopub.status.idle": "2024-09-13T13:17:02.133161Z",
+          "shell.execute_reply.started": "2024-09-13T13:16:55.231505Z",
+          "shell.execute_reply": "2024-09-13T13:17:02.132127Z"
+        },
+        "trusted": true,
+        "id": "BgjRDH2X6Sz5"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## **Exploratory Data Analysis**\n"
+      ],
+      "metadata": {
+        "id": "HXDskuYT6Sz8"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "training.describe().T"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:03.846105Z",
+          "iopub.execute_input": "2024-09-13T13:17:03.846526Z",
+          "iopub.status.idle": "2024-09-13T13:17:05.108948Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:03.846493Z",
+          "shell.execute_reply": "2024-09-13T13:17:05.107723Z"
+        },
+        "trusted": true,
+        "id": "fOs0dEC-6Sz9"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from IPython.display import display_html\n",
+        "import io\n",
+        "#buffer = io.StringIO()\n",
+        "\n",
+        "# save the describe as a df\n",
+        "desc = training.describe().T\n",
+        "\n",
+        "# Display per 50 columns and convert them to an HTML\n",
+        "desc1 = desc.iloc[:50].to_html()\n",
+        "desc2 = desc.iloc[50:100].to_html()\n",
+        "desc3 = desc.iloc[100:150].to_html()\n",
+        "\n",
+        "#Display using html\n",
+        "display_html(f\"\"\"\n",
+        "            <div style=\"display: flex; justify-content: space-around; gap: 20px;\">\n",
+        "            <div style=\"flex: 1;\">{desc1}</div>\n",
+        "            <div style=\"flex: 1;\">{desc2}</div>\n",
+        "            <div style=\"flex: 1;\">{desc3}</div>\n",
+        "            </div>\n",
+        "            \"\"\", raw=True\n",
+        "            )"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:05.111248Z",
+          "iopub.execute_input": "2024-09-13T13:17:05.111707Z",
+          "iopub.status.idle": "2024-09-13T13:17:06.42062Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:05.111649Z",
+          "shell.execute_reply": "2024-09-13T13:17:06.419437Z"
+        },
+        "trusted": true,
+        "id": "Ot7APmKW6Sz_"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Display per 50 columns and convert them to an HTML\n",
+        "desc4 = desc.iloc[150:200].to_html()\n",
+        "desc5 = desc.iloc[200:250].to_html()\n",
+        "desc6 = desc.iloc[250:300].to_html()\n",
+        "\n",
+        "display_html(f\"\"\"\n",
+        "            <div style=\"display: flex; justify-content: space-around; gap: 20px;\">\n",
+        "            <div style=\"flex: 1;\">{desc4}</div>\n",
+        "            <div style=\"flex: 1;\">{desc5}</div>\n",
+        "            <div style=\"flex: 1;\">{desc6}</div>\n",
+        "            </div>\n",
+        "            \"\"\", raw=True\n",
+        "            )"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:06.422882Z",
+          "iopub.execute_input": "2024-09-13T13:17:06.423337Z",
+          "iopub.status.idle": "2024-09-13T13:17:06.507523Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:06.423297Z",
+          "shell.execute_reply": "2024-09-13T13:17:06.506013Z"
+        },
+        "trusted": true,
+        "id": "wK1T2yvv6S0A"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "training.info()\n"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:07.374097Z",
+          "iopub.execute_input": "2024-09-13T13:17:07.374592Z",
+          "iopub.status.idle": "2024-09-13T13:17:07.413005Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:07.374549Z",
+          "shell.execute_reply": "2024-09-13T13:17:07.411714Z"
+        },
+        "trusted": true,
+        "id": "ffI8JrGC6S0B"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "training.dtypes.value_counts()"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:07.641497Z",
+          "iopub.execute_input": "2024-09-13T13:17:07.642663Z",
+          "iopub.status.idle": "2024-09-13T13:17:07.652249Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:07.642621Z",
+          "shell.execute_reply": "2024-09-13T13:17:07.650961Z"
+        },
+        "trusted": true,
+        "id": "pNRdFJCu6S0C"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "> All of our outputs are either Integer or Float"
+      ],
+      "metadata": {
+        "id": "xjIKewT46S0C"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Assuming 'training' is your DataFrame\n",
+        "z_scores = (training - training.mean()) / training.std()\n",
+        "outliers = training[(z_scores > 3) | (z_scores < -3)]"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:08.112796Z",
+          "iopub.execute_input": "2024-09-13T13:17:08.113241Z",
+          "iopub.status.idle": "2024-09-13T13:17:09.172812Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:08.113205Z",
+          "shell.execute_reply": "2024-09-13T13:17:09.171746Z"
+        },
+        "trusted": true,
+        "id": "n93SaLLA6S0D"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "missing_values = training.isnull().sum().sort_index()\n",
+        "has_missing_values = missing_values.any()  # Check if any column has missing values\n",
+        "has_missing_values"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:09.174721Z",
+          "iopub.execute_input": "2024-09-13T13:17:09.175142Z",
+          "iopub.status.idle": "2024-09-13T13:17:09.214415Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:09.175106Z",
+          "shell.execute_reply": "2024-09-13T13:17:09.213336Z"
+        },
+        "trusted": true,
+        "id": "qpwP38556S0D"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        ">  There are no missing values as seen on the above output."
+      ],
+      "metadata": {
+        "id": "ezCY-KGD6S0E"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        " Cap outliers at 3 standard deviations\n",
+        "z_scores = (training - training.mean()) / training.std()\n",
+        "training['capped_values'] = training.apply(lambda x: x if abs(z_scores[x.name]) <= 3 else 3 * training.std()[x.name], axis=0)"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-10T17:12:44.486795Z",
+          "iopub.execute_input": "2024-09-10T17:12:44.487292Z",
+          "iopub.status.idle": "2024-09-10T17:12:45.547218Z",
+          "shell.execute_reply.started": "2024-09-10T17:12:44.487254Z",
+          "shell.execute_reply": "2024-09-10T17:12:45.545247Z"
+        },
+        "id": "sC70ZqFv6S0E"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## **Data Cleaning**"
+      ],
+      "metadata": {
+        "id": "1XU8sNR66S0E"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "rows_with_value = training[training == -999999]\n",
+        "\n",
+        "# Filter out rows with NaN values\n",
+        "rows_with_value = rows_with_value.dropna()\n",
+        "\n",
+        "# Get the index of the rows\n",
+        "index_of_rows = rows_with_value.index\n",
+        "\n",
+        "# Get the rows themselves\n",
+        "rows_with_value_df = training.loc[index_of_rows]\n",
+        "rows_with_value_df"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:09.307276Z",
+          "iopub.execute_input": "2024-09-13T13:17:09.307707Z",
+          "iopub.status.idle": "2024-09-13T13:17:09.697572Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:09.307659Z",
+          "shell.execute_reply": "2024-09-13T13:17:09.696543Z"
+        },
+        "trusted": true,
+        "id": "x-2EiVgQ6S0E"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "training['var3'].value_counts()"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:09.699923Z",
+          "iopub.execute_input": "2024-09-13T13:17:09.700906Z",
+          "iopub.status.idle": "2024-09-13T13:17:09.712829Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:09.700867Z",
+          "shell.execute_reply": "2024-09-13T13:17:09.711437Z"
+        },
+        "trusted": true,
+        "id": "6IY1eoct6S0F"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Several values in the var3 column have the value -999999\n",
+        "# We shall replace\n",
+        "training = training.replace(-999999,2)"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:09.784625Z",
+          "iopub.execute_input": "2024-09-13T13:17:09.785074Z",
+          "iopub.status.idle": "2024-09-13T13:17:09.934825Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:09.785043Z",
+          "shell.execute_reply": "2024-09-13T13:17:09.933447Z"
+        },
+        "trusted": true,
+        "id": "jUCZdScU6S0F"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.feature_selection import SelectPercentile\n",
+        "from sklearn.feature_selection import f_classif,chi2\n",
+        "from sklearn.preprocessing import Binarizer, scale\n",
+        "#for finding features with constant features\n",
+        "from sklearn.feature_selection import VarianceThreshold"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:10.03829Z",
+          "iopub.execute_input": "2024-09-13T13:17:10.038995Z",
+          "iopub.status.idle": "2024-09-13T13:17:10.234834Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:10.038954Z",
+          "shell.execute_reply": "2024-09-13T13:17:10.233876Z"
+        },
+        "trusted": true,
+        "id": "ilmT7Rb36S0F"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## **Feature Selection**\n",
+        "\n",
+        "> We have a toal of 370 columns or features. Some of which are very constant in nature. Meaning that a large or all of their values are the same. This could be unnecessary to our model. In order to select and decide on those features let's look at them all together."
+      ],
+      "metadata": {
+        "id": "ncg-o4p06S0F"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "sel = VarianceThreshold(threshold=0)\n",
+        "sel.fit(training)\n",
+        "sum(sel.get_support())"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:10.465248Z",
+          "iopub.execute_input": "2024-09-13T13:17:10.46597Z",
+          "iopub.status.idle": "2024-09-13T13:17:10.920652Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:10.465937Z",
+          "shell.execute_reply": "2024-09-13T13:17:10.919552Z"
+        },
+        "trusted": true,
+        "id": "aDSsjUkS6S0G"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Print the constant features\n",
+        "print(\n",
+        "    len([\n",
+        "        x for x in training.columns\n",
+        "        if x not in training.columns[sel.get_support()]\n",
+        "    ]))\n",
+        "\n",
+        "[x for x in training.columns if x not in training.columns[sel.get_support()]]"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:10.92238Z",
+          "iopub.execute_input": "2024-09-13T13:17:10.922754Z",
+          "iopub.status.idle": "2024-09-13T13:17:11.011707Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:10.922724Z",
+          "shell.execute_reply": "2024-09-13T13:17:11.01037Z"
+        },
+        "trusted": true,
+        "id": "m68MTsFZ6S0G"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "sel2 = VarianceThreshold(threshold=0.01) #0.1 of the values are differents the others are all the same\n",
+        "sel2.fit(training)"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:11.013122Z",
+          "iopub.execute_input": "2024-09-13T13:17:11.013502Z",
+          "iopub.status.idle": "2024-09-13T13:17:11.397947Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:11.013471Z",
+          "shell.execute_reply": "2024-09-13T13:17:11.396933Z"
+        },
+        "trusted": true,
+        "id": "TParh-7-6S0G"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(\n",
+        "    len([\n",
+        "        x for x in training.columns\n",
+        "        if x not in training.columns[sel2.get_support()]\n",
+        "    ]))\n",
+        "\n",
+        "[x for x in training.columns if x not in training.columns[sel2.get_support()]]"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:11.399964Z",
+          "iopub.execute_input": "2024-09-13T13:17:11.400299Z",
+          "iopub.status.idle": "2024-09-13T13:17:11.472603Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:11.400272Z",
+          "shell.execute_reply": "2024-09-13T13:17:11.471253Z"
+        },
+        "trusted": true,
+        "id": "QX664qDp6S0H"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# for prooving purposes\n",
+        "training['num_trasp_var17_in_ult1'].value_counts()"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:11.474191Z",
+          "iopub.execute_input": "2024-09-13T13:17:11.475262Z",
+          "iopub.status.idle": "2024-09-13T13:17:11.484301Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:11.475229Z",
+          "shell.execute_reply": "2024-09-13T13:17:11.483158Z"
+        },
+        "trusted": true,
+        "id": "QsYko9C36S0H"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "#### we can then drop these columns from the train and test sets\n",
+        "\n",
+        "\n",
+        "X_train = sel.transform(X_train)\n",
+        "X_test = sel.transform(X_test)"
+      ],
+      "metadata": {
+        "id": "XH7w0tSt6S0I"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Store the constant features in a dictionary\n",
+        "constant_features_dict = {\n",
+        "    'constant_features': [x for x in training.columns if x not in training.columns[sel.get_support()]]\n",
+        "                        }\n",
+        "\n",
+        "print(f\"Number of constant features: {len(constant_features_dict['constant_features'])}\")\n",
+        "print(constant_features_dict['constant_features'])\n"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:11.873301Z",
+          "iopub.execute_input": "2024-09-13T13:17:11.873749Z",
+          "iopub.status.idle": "2024-09-13T13:17:11.914454Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:11.873717Z",
+          "shell.execute_reply": "2024-09-13T13:17:11.91311Z"
+        },
+        "trusted": true,
+        "id": "M1BWERSi6S0I"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# We can now drop colulmns/ features that are completely the same. Which will not help in training our model.\n",
+        "constant_features_todrop = constant_features_dict['constant_features'] = constant_features_dict['constant_features']\n",
+        "# Drop the columns\n",
+        "training = training.drop(columns=constant_features_todrop)"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:12.342905Z",
+          "iopub.execute_input": "2024-09-13T13:17:12.343319Z",
+          "iopub.status.idle": "2024-09-13T13:17:12.412075Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:12.343288Z",
+          "shell.execute_reply": "2024-09-13T13:17:12.410943Z"
+        },
+        "trusted": true,
+        "id": "kJ-jSsa56S0J"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "training.info()"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:13.265258Z",
+          "iopub.execute_input": "2024-09-13T13:17:13.266083Z",
+          "iopub.status.idle": "2024-09-13T13:17:13.293383Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:13.266048Z",
+          "shell.execute_reply": "2024-09-13T13:17:13.29205Z"
+        },
+        "trusted": true,
+        "id": "CiT141iE6S0K"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## **Split Dataset**"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-12T07:40:09.304703Z",
+          "iopub.execute_input": "2024-09-12T07:40:09.305125Z",
+          "iopub.status.idle": "2024-09-12T07:40:09.336073Z",
+          "shell.execute_reply.started": "2024-09-12T07:40:09.305091Z",
+          "shell.execute_reply": "2024-09-12T07:40:09.334918Z"
+        },
+        "id": "uyMnBcOM6S0K"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Add PCA components as features\n",
+        "from sklearn.preprocessing import normalize\n",
+        "from sklearn.decomposition import PCA"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:14.371143Z",
+          "iopub.execute_input": "2024-09-13T13:17:14.371947Z",
+          "iopub.status.idle": "2024-09-13T13:17:14.377325Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:14.371912Z",
+          "shell.execute_reply": "2024-09-13T13:17:14.375986Z"
+        },
+        "trusted": true,
+        "id": "_V-85Uz66S0K"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X = training.iloc[:,:-1]\n",
+        "y = training.TARGET"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:14.867273Z",
+          "iopub.execute_input": "2024-09-13T13:17:14.868311Z",
+          "iopub.status.idle": "2024-09-13T13:17:14.93608Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:14.868272Z",
+          "shell.execute_reply": "2024-09-13T13:17:14.935Z"
+        },
+        "trusted": true,
+        "id": "5xh4mR_Q6S0L"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X_normalized = normalize(X, axis=0)\n",
+        "pca = PCA(n_components=2)\n",
+        "X_pca = pca.fit_transform(X_normalized)\n",
+        "\n",
+        "# Add the paca to our dataframe frame for analysis.\n",
+        "X['PCA1'] = X_pca[:,0]\n",
+        "X['PCA2'] = X_pca[:,1]"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:15.465276Z",
+          "iopub.execute_input": "2024-09-13T13:17:15.466295Z",
+          "iopub.status.idle": "2024-09-13T13:17:16.838516Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:15.466252Z",
+          "shell.execute_reply": "2024-09-13T13:17:16.836848Z"
+        },
+        "trusted": true,
+        "id": "eWbKIXnc6S0L"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(X[['PCA1', 'PCA2']].isnull().sum())\n"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:16.841131Z",
+          "iopub.execute_input": "2024-09-13T13:17:16.841683Z",
+          "iopub.status.idle": "2024-09-13T13:17:16.851881Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:16.841626Z",
+          "shell.execute_reply": "2024-09-13T13:17:16.850738Z"
+        },
+        "trusted": true,
+        "id": "3upo0P7f6S0L"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "%matplotlib inline\n",
+        "plt.figure(figsize=(10, 6))\n",
+        "\n",
+        "col_pal = ['#00204C', '#31446B', '#782170', '#958F78', '#00B050', '#FFE945']\n",
+        "# Scatter plot with color based on 'Cluster'\n",
+        "sns.scatterplot(x='PCA1', y='PCA2', data=X, marker='o',color= col_pal[0])\n",
+        "\n",
+        "plt.title('PCA Component Scatter Plot')\n",
+        "plt.xlabel('PCA1')\n",
+        "plt.ylabel('PCA2')\n",
+        "plt.legend(title='PCA Group')\n",
+        "\n",
+        "plt.show()"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:51:17.795446Z",
+          "iopub.execute_input": "2024-09-13T13:51:17.795921Z",
+          "iopub.status.idle": "2024-09-13T13:51:18.852925Z",
+          "shell.execute_reply.started": "2024-09-13T13:51:17.795889Z",
+          "shell.execute_reply": "2024-09-13T13:51:18.851754Z"
+        },
+        "trusted": true,
+        "id": "CuNrppzU6S0L"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Create a calss for XGB classifier model\n",
+        "clf = xgb.XGBClassifier()"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:17:17.953324Z",
+          "iopub.execute_input": "2024-09-13T13:17:17.953693Z",
+          "iopub.status.idle": "2024-09-13T13:17:17.958467Z",
+          "shell.execute_reply.started": "2024-09-13T13:17:17.953644Z",
+          "shell.execute_reply": "2024-09-13T13:17:17.957461Z"
+        },
+        "trusted": true,
+        "id": "_b7uE7mb6S0T"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.feature_selection import SelectPercentile, chi2, f_classif\n",
+        "from sklearn.preprocessing import Binarizer, scale\n",
+        "from sklearn.model_selection import cross_val_score\n",
+        "import numpy as np\n",
+        "\n",
+        "# List of percentiles to test\n",
+        "percentiles = [75,76, 77, 78, 80, 85, 90, 95, 96]\n",
+        "\n",
+        "# Placeholder for tracking the best percentile and its score\n",
+        "best_percentile = 0\n",
+        "best_score = 0\n",
+        "\n",
+        "# Iterate over the percentiles\n",
+        "for p in percentiles:\n",
+        "    X_bin = Binarizer().fit_transform(scale(X))\n",
+        "\n",
+        "    # Chi-square selection\n",
+        "    selectChi2 = SelectPercentile(chi2, percentile=p).fit(X_bin, y)\n",
+        "    X_selected = selectChi2.transform(X_bin)\n",
+        "\n",
+        "    # Evaluate model performance (example using cross-validation)\n",
+        "    model = clf\n",
+        "    scores = cross_val_score(model, X_selected, y, cv=5, scoring='accuracy')  # Adjust scoring method as needed\n",
+        "    avg_score = np.mean(scores)\n",
+        "\n",
+        "    print(f\"Percentile: {p}, Score: {avg_score}\")\n",
+        "\n",
+        "    # Track the best score\n",
+        "    if avg_score > best_score:\n",
+        "        best_score = avg_score\n",
+        "        best_percentile = p\n",
+        "\n",
+        "print(f\"Best percentile: {best_percentile} with score: {best_score}\")\n"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:18:24.32005Z",
+          "iopub.execute_input": "2024-09-13T13:18:24.320467Z",
+          "iopub.status.idle": "2024-09-13T13:21:26.662341Z",
+          "shell.execute_reply.started": "2024-09-13T13:18:24.320435Z",
+          "shell.execute_reply": "2024-09-13T13:21:26.661379Z"
+        },
+        "trusted": true,
+        "id": "Q6qMYn4d6S0U"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "> The feature best performs by using the selected 95% of the data."
+      ],
+      "metadata": {
+        "id": "bHIAJU6F6S0U"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Percentile for the feature selection\n",
+        "p = 95\n",
+        "X_bin = Binarizer().fit_transform(scale(X))\n",
+        "selectChi2 = SelectPercentile(chi2, percentile=p).fit(X_bin, y)\n",
+        "selectF_classif = SelectPercentile(f_classif, percentile=p).fit(X, y)"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:30:18.19827Z",
+          "iopub.execute_input": "2024-09-13T13:30:18.198778Z",
+          "iopub.status.idle": "2024-09-13T13:30:20.132268Z",
+          "shell.execute_reply.started": "2024-09-13T13:30:18.198744Z",
+          "shell.execute_reply": "2024-09-13T13:30:20.131098Z"
+        },
+        "trusted": true,
+        "id": "PEmOFrZz6S0U"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "chi2_selected = selectChi2.get_support()\n",
+        "chi2_selected_features = [ f for i,f in enumerate(X.columns) if chi2_selected[i]]\n",
+        "\n",
+        "\n",
+        "print('Chi2 selected {} features {}.'.format(chi2_selected.sum(),chi2_selected_features))"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:30:23.575807Z",
+          "iopub.execute_input": "2024-09-13T13:30:23.576293Z",
+          "iopub.status.idle": "2024-09-13T13:30:23.585888Z",
+          "shell.execute_reply.started": "2024-09-13T13:30:23.576258Z",
+          "shell.execute_reply": "2024-09-13T13:30:23.584535Z"
+        },
+        "trusted": true,
+        "id": "5ydjjkEy6S0U"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "f_classif_selected = selectF_classif.get_support()\n",
+        "f_classif_selected_features = [ f for i,f in enumerate(X.columns) if f_classif_selected[i]]\n",
+        "print('F_classif selected {} features {}.'.format(f_classif_selected.sum(),f_classif_selected_features))"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:30:24.656468Z",
+          "iopub.execute_input": "2024-09-13T13:30:24.656974Z",
+          "iopub.status.idle": "2024-09-13T13:30:24.665538Z",
+          "shell.execute_reply.started": "2024-09-13T13:30:24.656938Z",
+          "shell.execute_reply": "2024-09-13T13:30:24.664328Z"
+        },
+        "trusted": true,
+        "id": "iawY6c7D6S0U"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "selected = chi2_selected & f_classif_selected\n",
+        "print('Chi2 & F_classif selected {} features'.format(selected.sum()))\n",
+        "features = [ f for f,s in zip(X.columns, selected) if s]\n",
+        "print (features)"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:30:25.687171Z",
+          "iopub.execute_input": "2024-09-13T13:30:25.687607Z",
+          "iopub.status.idle": "2024-09-13T13:30:25.694918Z",
+          "shell.execute_reply.started": "2024-09-13T13:30:25.687574Z",
+          "shell.execute_reply": "2024-09-13T13:30:25.69374Z"
+        },
+        "trusted": true,
+        "id": "TLzQv8xX6S0U"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "selected"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:30:26.533142Z",
+          "iopub.execute_input": "2024-09-13T13:30:26.533564Z",
+          "iopub.status.idle": "2024-09-13T13:30:26.543384Z",
+          "shell.execute_reply.started": "2024-09-13T13:30:26.533534Z",
+          "shell.execute_reply": "2024-09-13T13:30:26.541933Z"
+        },
+        "trusted": true,
+        "id": "gMgwyM3d6S0X"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn import model_selection\n",
+        "X_sel = X[features]\n",
+        "X_train, X_test, y_train, y_test = model_selection.train_test_split(X_sel, y, random_state=1301, stratify=y, test_size=0.4)\n"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:30:27.298121Z",
+          "iopub.execute_input": "2024-09-13T13:30:27.298568Z",
+          "iopub.status.idle": "2024-09-13T13:30:27.566692Z",
+          "shell.execute_reply.started": "2024-09-13T13:30:27.298538Z",
+          "shell.execute_reply": "2024-09-13T13:30:27.565496Z"
+        },
+        "trusted": true,
+        "id": "7ote-ljn6S0Y"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "clf = xgb.XGBClassifier()"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:30:49.714746Z",
+          "iopub.execute_input": "2024-09-13T13:30:49.715227Z",
+          "iopub.status.idle": "2024-09-13T13:30:49.7227Z",
+          "shell.execute_reply.started": "2024-09-13T13:30:49.715195Z",
+          "shell.execute_reply": "2024-09-13T13:30:49.720906Z"
+        },
+        "trusted": true,
+        "id": "n3nBOJFU6S0Z"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "clf.fit(X_train, y_train, early_stopping_rounds=50, eval_metric=\"auc\",eval_set=[(X_train, y_train), (X_test, y_test)])"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:30:50.694216Z",
+          "iopub.execute_input": "2024-09-13T13:30:50.694797Z",
+          "iopub.status.idle": "2024-09-13T13:31:02.547875Z",
+          "shell.execute_reply.started": "2024-09-13T13:30:50.694754Z",
+          "shell.execute_reply": "2024-09-13T13:31:02.546924Z"
+        },
+        "trusted": true,
+        "id": "_MD0PT1Z6S0a"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.metrics import roc_auc_score\n",
+        "\n",
+        "# Make predictions with a specific number of trees (up to best_iteration)\n",
+        "probs = clf.predict_proba(X_sel, iteration_range=(0, clf.best_iteration))[:, 1]\n",
+        "\n",
+        "# Calculate AUC\n",
+        "print('Overall AUC with best_iteration:', roc_auc_score(y, probs))\n"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:31:09.830925Z",
+          "iopub.execute_input": "2024-09-13T13:31:09.83229Z",
+          "iopub.status.idle": "2024-09-13T13:31:10.184656Z",
+          "shell.execute_reply.started": "2024-09-13T13:31:09.832248Z",
+          "shell.execute_reply": "2024-09-13T13:31:10.182692Z"
+        },
+        "trusted": true,
+        "id": "AVf9J-gf6S0a"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## **Test Predictions**"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-11T16:21:34.732534Z",
+          "iopub.execute_input": "2024-09-11T16:21:34.732907Z",
+          "iopub.status.idle": "2024-09-11T16:21:34.80595Z",
+          "shell.execute_reply.started": "2024-09-11T16:21:34.732879Z",
+          "shell.execute_reply": "2024-09-11T16:21:34.804684Z"
+        },
+        "id": "aDK3KFJa6S0b"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "test"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:31:16.999065Z",
+          "iopub.execute_input": "2024-09-13T13:31:16.9995Z",
+          "iopub.status.idle": "2024-09-13T13:31:17.061935Z",
+          "shell.execute_reply.started": "2024-09-13T13:31:16.999469Z",
+          "shell.execute_reply": "2024-09-13T13:31:17.060702Z"
+        },
+        "trusted": true,
+        "id": "HjNLjXxi6S0b"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Let's normalize the test dataset\n",
+        "test_normalized = normalize(test, axis=0)\n",
+        "#Create a class for PCA\n",
+        "pca = PCA(n_components=2)\n",
+        "#Let's fit the data to PCA\n",
+        "test_pca = pca.fit_transform(test_normalized)"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:34:22.131989Z",
+          "iopub.execute_input": "2024-09-13T13:34:22.132462Z",
+          "iopub.status.idle": "2024-09-13T13:34:23.461574Z",
+          "shell.execute_reply.started": "2024-09-13T13:34:22.13243Z",
+          "shell.execute_reply": "2024-09-13T13:34:23.459749Z"
+        },
+        "trusted": true,
+        "id": "9FO2g4n96S0d"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Create two pca components\n",
+        "test['PCA1'] = test_pca[:,0]\n",
+        "test['PCA2'] = test_pca[:,1]\n",
+        "sel_test = test[features]\n",
+        "#Use previous predictions based on the model\n",
+        "y_pred = clf.predict_proba(sel_test)"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:36:11.215643Z",
+          "iopub.execute_input": "2024-09-13T13:36:11.216792Z",
+          "iopub.status.idle": "2024-09-13T13:36:11.529081Z",
+          "shell.execute_reply.started": "2024-09-13T13:36:11.216756Z",
+          "shell.execute_reply": "2024-09-13T13:36:11.528138Z"
+        },
+        "trusted": true,
+        "id": "gM38qeTm6S0d"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "submission = pd.DataFrame({\"ID\":test.index, \"TARGET\":y_pred[:,1]})\n",
+        "submission.to_csv(\"submission.csv\", index=False)"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:36:14.370867Z",
+          "iopub.execute_input": "2024-09-13T13:36:14.371726Z",
+          "iopub.status.idle": "2024-09-13T13:36:14.579506Z",
+          "shell.execute_reply.started": "2024-09-13T13:36:14.371682Z",
+          "shell.execute_reply": "2024-09-13T13:36:14.578308Z"
+        },
+        "trusted": true,
+        "id": "TkO0YYdz6S0e"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "mapFeat = dict(zip([\"f\"+str(i) for i in range(len(features))],features))\n",
+        "# Get the feature importance scores from the model\n",
+        "ts = pd.Series(clf.get_booster().get_fscore())\n",
+        "\n",
+        "# The top 25 most important features\n",
+        "plt.figure(figsize=(15,6))\n",
+        "ts.sort_values()[-25:].plot(kind=\"barh\", title=\"XGBoost Feature Importance\",color='green',fontsize=8)\n",
+        "plt.xlabel('Feature',fontsize=10,color =  col_pal[0])\n",
+        "plt.ylabel('F Score',fontsize=10,color =  col_pal[0]);\n"
+      ],
+      "metadata": {
+        "execution": {
+          "iopub.status.busy": "2024-09-13T13:57:21.304859Z",
+          "iopub.execute_input": "2024-09-13T13:57:21.305288Z",
+          "iopub.status.idle": "2024-09-13T13:57:21.870215Z",
+          "shell.execute_reply.started": "2024-09-13T13:57:21.305254Z",
+          "shell.execute_reply": "2024-09-13T13:57:21.869097Z"
+        },
+        "trusted": true,
+        "id": "HjrlJ-C46S0e"
+      },
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
